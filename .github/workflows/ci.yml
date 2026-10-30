@@ -1,0 +1,103 @@
+هname: AI381 CI Pipeline
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Lint and Test
+    runs-on: ubuntu-24.04
+
+    steps:
+      
+steps:
+  - name: Checkout repository
+    uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+  - name: Install dependencies and run checks
+    run: |
+      docker run --rm \
+        -v "$GITHUB_WORKSPACE:/workspace" \
+        -w /workspace \
+        python:3.13-slim \
+ name: AI381 CI Pipeline
+
+on:
+pull_request:
+branches: [main]
+push:
+branches: [main]
+
+permissions:
+contents: read
+
+jobs:
+test:
+name: Lint and Test
+runs-on: ubuntu-24.04
+
+
+steps:
+  - name: Checkout repository
+    uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+  - name: Install dependencies and run checks
+    run: |
+      docker run --rm \
+        -v "$GITHUB_WORKSPACE:/workspace" \
+        -w /workspace \
+        python:3.13-slim \
+        sh -c "python -m pip install -r requirements.txt pytest ruff httpx2 && ruff check --ignore EXE002 src tests && PYTHONPATH=/workspace pytest -v"
+
+
+build-scan-push:
+name: Build, Scan and Push Docker Image
+needs: test
+if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+runs-on: ubuntu-24.04
+
+
+permissions:
+  contents: read
+  packages: write
+
+steps:
+  - name: Checkout repository
+    uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+  - name: Build Docker image
+    run: |
+      IMAGE_NAME="ghcr.io/${GITHUB_REPOSITORY,,}"
+      docker build -t "$IMAGE_NAME:$GITHUB_SHA" .
+
+  - name: Scan image with Trivy
+    run: |
+      IMAGE_NAME="ghcr.io/${GITHUB_REPOSITORY,,}"
+      mkdir -p "$HOME/.cache/trivy"
+      docker run --rm \
+        -v /var/run/docker.sock:/var/run/docker.sock \
+        -v "$HOME/.cache/trivy:/root/.cache/" \
+        aquasec/trivy:0.70.0 \
+        image --ignore-unfixed \
+        --severity HIGH,CRITICAL \
+        --exit-code 1 \
+        "$IMAGE_NAME:$GITHUB_SHA"
+
+  - name: Login to GHCR
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    run: |
+      echo "$GH_TOKEN" | docker login ghcr.io \
+        -u "$GITHUB_ACTOR" --password-stdin
+
+  - name: Push image to GHCR
+    run: |
+      IMAGE_NAME="ghcr.io/${GITHUB_REPOSITORY,,}"
+      docker push "$IMAGE_NAME:$GITHUB_SHA"
+
