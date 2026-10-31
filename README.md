@@ -1,5 +1,7 @@
 # AI381 Lab 2 – Churn Prediction API
 
+[![AI381 CI Pipeline](https://github.com/tala271/ai381-lab2-churn-api/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/tala271/ai381-lab2-churn-api/actions/workflows/ci.yml)
+
 ## Project Overview
 
 This project implements a machine learning churn prediction API using FastAPI. It packages the trained model in Docker and uses GitHub Actions for automated testing, security scanning, and image publishing.
