@@ -57,17 +57,16 @@ http://localhost:8000/docs
 
 ## Run with Docker
 
-Build the image:
+Build the Docker image and start the API with one command:
 
-docker build -t churn-api .
-
-Run the container:
-
-docker run -d -p 8000:8000 --name churn-api churn-api
+```bash
+docker build -t churn-api . && docker run -d -p 8000:8000 --name churn-api churn-api
+```
 
 Test the health endpoint:
 
 http://localhost:8000/health
+
 
 ## Testing
 
@@ -90,7 +89,7 @@ GitHub Actions automatically:
 
 ## Docker Image
 
-ghcr.io/tala271/ai381-lab2-churn-api:d6e48b0a2d30c56cc36966b114acad5cf1462b79
+ghcr.io/tala271/ai381-lab2-churn-api:dcd7deb98edfa2d769ec987979f2eab2673940e0
 
 ## Security
 
