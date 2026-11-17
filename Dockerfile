@@ -1,52 +1,34 @@
-# Stage 1: builder
-FROM python:3.13-slim-bookworm AS builder
-
-RUN rm -f /usr/local/lib/python3.13/site-packages/pip/_vendor/bom.cdx.json
-
+# ---- Stage 1: install dependencies and get the model ----
+FROM python:3.12.15-slim-trixie AS builder
 WORKDIR /build
-
-RUN python -m venv /opt/venv
-
-ENV PATH="/opt/venv/bin:$PATH"
-
 COPY requirements.txt .
-
-RUN pip install --no-cache-dir -r requirements.txt "msgpack>=1.2.3" "setuptools>=78.1.1" "urllib3>=2.8.0"
-
-RUN find /opt/venv /usr/local/lib/python3.13/site-packages/pip \
-    -name "bom.cdx.json" -delete
-
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+ENV PYTHONPATH=/install/lib/python3.12/site-packages
 COPY src/ src/
-COPY data/churn_v1.csv data/churn_v1.csv
+COPY data/ data/
+COPY artifacts/ artifacts/
+ARG GIT_SHA=local
+# Lab 3 onwards: the promotion gate exports the @champion model to artifacts/.
+# Lab 2: artifacts/ is empty, so the image trains the model itself.
+RUN if [ -f artifacts/model.joblib ]; then \
+      mkdir -p models && cp artifacts/model.joblib artifacts/metadata.json models/ && \
+      python -c "import json,sys; p='models/metadata.json'; m=json.load(open(p)); m['model_version']=sys.argv[1][:7]; json.dump(m,open(p,'w'))" "$GIT_SHA"; \
+    else \
+      GIT_SHA=$GIT_SHA python -m src.train.train; \
+    fi
 
-RUN python src/train/train.py data/churn_v1.csv models/model.joblib
-
-
-# Stage 2: runtime
-FROM python:3.13-slim-bookworm
-
-RUN apt-get update \
-    && apt-get upgrade -y \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN rm -f /usr/local/lib/python3.13/site-packages/pip/_vendor/bom.cdx.json
-
-RUN useradd --create-home --uid 10001 appuser
-
+# ---- Stage 2: a small runtime image, no build tools, not root ----
+FROM python:3.12.15-slim-trixie
+LABEL org.opencontainers.image.title="ai381-churn-starter" \
+      org.opencontainers.image.description="AI381 Machine Learning Operations churn API starter"
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 MODEL_DIR=/app/models
+RUN useradd --create-home --uid 10001 app
 WORKDIR /app
-
-COPY --from=builder /opt/venv /opt/venv
-COPY --from=builder /build/models /app/models
-COPY src/ /app/src/
-
-ENV PATH="/opt/venv/bin:$PATH" PYTHONUNBUFFERED=1
-
-USER appuser
-
+COPY --from=builder /install /usr/local
+COPY --from=builder /build/models models/
+COPY src/ src/
+USER 10001
 EXPOSE 8000
-
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')" || exit 1
-
+HEALTHCHECK --interval=15s --timeout=3s --start-period=10s --retries=3 \
+  CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2)"]
 CMD ["uvicorn", "src.app.main:app", "--host", "0.0.0.0", "--port", "8000"]

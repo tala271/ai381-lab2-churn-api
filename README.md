@@ -1,103 +1,41 @@
-# AI381 Lab 2 – Churn Prediction API
+# AI381 Lab 3 starter · a working Lab 2 service
 
-[![AI381 CI Pipeline](https://github.com/tala271/ai381-lab2-churn-api/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/tala271/ai381-lab2-churn-api/actions/workflows/ci.yml)
+Dr. Tariq Al-Omari · AI381 Machine Learning Operations · JUST · Fall 2026/27
 
-## Project Overview
+Use this only if your own Lab 2 repository is not working. It is a complete Lab 2 solution for the churn
+model: a FastAPI service with `/health` and `/predict`, tests, a multi-stage non-root Dockerfile and a
+GitHub Actions workflow that tests, builds, scans and publishes the image to GHCR by commit SHA.
+The full Lab 3 instructions, checkpoints and rubric are on e-learning. If you use this starter, say so in your video.
 
-This project implements a machine learning churn prediction API using FastAPI. It packages the trained model in Docker and uses GitHub Actions for automated testing, security scanning, and image publishing.
-
-## Technologies
-
-- Python 3.13
-- FastAPI
-- Scikit-learn
-- Docker
-- GitHub Actions
-- Trivy
-- GitHub Container Registry (GHCR)
-
-## Project Structure
-
-.
-├── data/
-├── models/
-├── src/
-├── tests/
-├── Dockerfile
-├── requirements.txt
-└── README.md
-
-## API Endpoints
-
-### Health Check
-
-GET /health
-
-Returns the API health status.
-
-### Prediction
-
-POST /predict
-
-Receives customer information and returns a churn prediction with its probability.
-
-## Run Locally
-
-Install dependencies:
-
-pip install -r requirements.txt
-
-Start the API:
-
-uvicorn src.app.main:app --host 0.0.0.0 --port 8000
-
-Open API documentation:
-
-http://localhost:8000/docs
-
-## Run with Docker
-
-Build the Docker image and start the API with one command:
-
+## Run it
 ```bash
-docker build -t churn-api . && docker run -d -p 8000:8000 --name churn-api churn-api
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements-dev.txt
+python -m src.train.train        # trains the model into models/
+pytest -q                        # all tests should pass
+uvicorn src.app.main:app --port 8000
+curl -s localhost:8000/health
+docker build -t churn-api:local . && docker run --rm -p 8000:8000 churn-api:local
 ```
 
-Test the health endpoint:
+## What Lab 3 adds (your work)
+- MLflow in Docker Compose; log params, metrics, a data hash, the signature and the model
+- Three candidate models compared per slice, latency and size; `MODEL_SELECTION.md`
+- The `@champion` alias and a training workflow with a promotion gate
+- Deploying the champion image: to Azure Container Apps with OIDC (optional), or on your own laptop with Docker Compose, with a smoke test either way
+- Lineage: image tag → commit SHA → MLflow run ID
 
-http://localhost:8000/health
+## Files that help you (read their comments first)
+| File | What it is |
+|---|---|
+| `docker-compose.mlflow.yml` | The MLflow server. `docker compose -f docker-compose.mlflow.yml up -d --wait`, then open http://localhost:5000 |
+| `src/train/train_mlflow.py` | Trains the candidates and logs every run. Your work is marked `TODO` |
+| `scripts/promote.py` | The promotion gate. Exit code 1 means a model was blocked. Your thresholds are marked `TODO` |
+| `.github/workflows/train.yml` | Runs the training and the gate on every pull request |
+| `docker-compose.deploy.yml` and `scripts/smoke_test.sh` | The local deployment and the smoke test (works for Azure too) |
+| `.github/workflows/deploy-azure.yml.example` | The Azure option, switched off until you rename it |
+| `MODEL_SELECTION.md` | The template for your decision |
 
+Requirements note: `requirements-dev.txt` adds `mlflow`. Run `pip install -r requirements-dev.txt` again after you update the starter.
 
-## Testing
-
-The project includes automated tests for:
-
-- API health response.
-- Model loading.
-- Input validation.
-- Unknown categorical values.
-- Deterministic predictions.
-
-## CI/CD Pipeline
-
-GitHub Actions automatically:
-
-1. Runs linting and automated tests.
-2. Builds the Docker image.
-3. Scans the image for HIGH and CRITICAL vulnerabilities using Trivy.
-4. Pushes the image to GitHub Container Registry after successful checks on the main branch.
-
-## Docker Image
-
-ghcr.io/tala271/ai381-lab2-churn-api:dcd7deb98edfa2d769ec987979f2eab2673940e0
-
-## Security
-
-The Docker image is scanned using Trivy.
-
-## Author
-
-Tala
-
-AI381 – Machine Learning Operations  
-Lab 2
+The data files (`data/churn_v1.csv`, `data/churn_v2.csv`) are the same as in the Lab 1 starter kit.
